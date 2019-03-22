@@ -1,0 +1,20 @@
+{
+    "device": {
+        "deviceId": 114,
+        "address": "192.168.178.55"
+    },
+    "polling": {
+        "schedule": "*/15 * * * * *"
+    },
+    "objects": [{
+        "objectId": {
+            "type": 2,
+            "instance": 202
+        }
+    }, {
+        "objectId": {
+            "type": 2,
+            "instance": 203
+        }
+    }]
+}

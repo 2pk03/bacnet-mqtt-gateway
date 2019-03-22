@@ -1,0 +1,18 @@
+{
+    "mqtt": {
+        "gatewayId": "{{device id}}",
+        "host": "mqtt.api.infinimesh.io",
+        "port": 8883,
+        "authentication": {
+            "certPath": "{{device .crt file path}}",
+            "keyPath": "{{device .key file path}}"
+        }
+    },
+    "bacnet": {
+        "configFolder": "./devices/"
+    },
+    "httpServer": {
+        "enabled": true,
+        "port": 8082
+    }
+}

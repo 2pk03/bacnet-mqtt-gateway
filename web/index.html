@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+      integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+<link href='http://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="admin.css">
+<title>BACnet gateway</title>
+</meta>
+
+<body>
+
+
+<div id="app">
+    <header>
+        <div class="text-center">
+            <h1>BACnet MQTT Gateway</h1>
+            <p>Admin interface for BACNet MQTT gateway</p>
+            <hr/>
+            <button v-on:click="showWhois" class="btn btn-dark">WhoIs</button>
+            <button v-on:click="showObjects" class="btn btn-dark">Object list</button>
+        </div>
+    </header>
+    <main class="container">
+
+        <!-- DEVICES VIEW -->
+        <div class="devices" v-if="state === 'whois'">
+            <h2>Devices in Network</h2>
+            <whois inline-template>
+                <div>
+                    <button v-on:click="whois" v-if="!loading" class="btn btn-primary">Scan</button>
+                    <button v-if="loading" class="btn btn-primary" type="button" disabled>
+                        <span class="spinner-border spinner-border-sm"></span>
+                        Scanning...
+                    </button>
+                    <table class="table table-dark" v-if="!loading && devices && devices.length > 0">
+                        <thead>
+                        <tr>
+                            <th scope="col">IP Address</th>
+                            <th scope="col">Device ID</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="device in devices">
+                            <td>{{device.address}}</td>
+                            <td>{{device.deviceId}}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </whois>
+        </div>
+
+        <!-- OBJECTS VIEW -->
+        <div class="objects" v-if="state === 'objects'">
+            <h2>Object List</h2>
+            <device-scan inline-template>
+                <div>
+                    <form>
+                        <div class="form-group">
+                            <label>Device ID</label>
+                            <input type="text" v-model="deviceId" class="form-control"/>
+                        </div>
+                        <div class="form-group">
+                            <label>IP Address</label>
+                            <input type="text" v-model="address" class="form-control"/>
+                        </div>
+                        <button type="submit" v-if="!loading" v-on:click="scanDevice" class="btn btn-primary">Read
+                            Objects
+                        </button>
+                        <button v-if="loading" class="btn btn-primary" type="button" disabled>
+                            <span class="spinner-border spinner-border-sm"></span>
+                            Reading Objects...
+                        </button>
+                    </form>
+                    <table class="table table-dark" v-if="!loading && objects && objects.length > 0">
+                        <thead>
+                        <tr>
+                            <th scope="col">Object ID</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Description</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="object in objects">
+                            <td>{{object.objectId.type}} / {{object.objectId.instance}}</td>
+                            <td>{{object.name}}</td>
+                            <td>{{object.description}}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </device-scan>
+        </div>
+    </main>
+</div>
+
+<!-- global templates -->
+<script type="text/x-template" id="spinner">
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border spinner" role="status"></div>
+    </div>
+</script>
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/vue/2.1.6/vue.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="admin.js"></script>
+
+</body>
+</html>
