@@ -1,10 +1,10 @@
 {
     "device": {
         "deviceId": 114,
-        "address": "192.168.178.55"
+        "address": "192.168.1.101"
     },
     "polling": {
-        "schedule": "*/15 * * * * *"
+        "schedule": "*/3 * * * * *"
     },
     "objects": [{
         "objectId": {
