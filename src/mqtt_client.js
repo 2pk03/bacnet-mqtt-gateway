@@ -50,7 +50,7 @@ class MqttClient extends EventEmitter {
 
     publishMessage(messageJson) {
         const message = JSON.stringify(messageJson);
-        const topic = 'shadows/' + gatewayId;
+        const topic = 'devices/' + gatewayId + '/state/reported/delta';
 
         logger.log('info', 'Publish message to MQTT Broker');
         this.client.publish(topic, message);
