@@ -59,7 +59,8 @@ class BacnetClient extends EventEmitter {
 
     _readObjectPresentValue(deviceAddress, type, instance) {
         return this._readObject(deviceAddress, type, instance, [
-            { id: bacnet.enum.PropertyIds.PROP_PRESENT_VALUE }
+            { id: bacnet.enum.PropertyIds.PROP_PRESENT_VALUE },
+            { id: bacnet.enum.PropertyIds.PROP_OBJECT_NAME}
         ]);
     }
 
@@ -140,7 +141,11 @@ class BacnetClient extends EventEmitter {
                 successfulResults.forEach(object => {
                     const objectId = object.values[0].objectId.type + '_' + object.values[0].objectId.instance;
                     const presentValue = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_PRESENT_VALUE);
-                    values[objectId] = presentValue;
+                    const objectName = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_OBJECT_NAME);
+
+                    values[objectId] = {};
+	                  values[objectId].value = presentValue;
+	                  values[objectId].name = objectName;
                 });
                 this.emit('values', device, values);
             }).catch(function (error) {
