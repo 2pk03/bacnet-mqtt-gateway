@@ -1,11 +1,11 @@
 {
     "mqtt": {
-        "gatewayId": "0x132",
-        "host": "mqtt.api.infinimesh.io",
+        "gatewayId": "YOUR INFINIMESH DEVICE ID",
+        "host": "mqtt.api.infinimesh.cloud",
         "port": 8883,
         "authentication": {
-            "certPath": "/home/j0e/gopath/src/github.com/infinimesh/infinimesh/hack/device_certs/bacnet_1.crt",
-            "keyPath": "/home/j0e/gopath/src/github.com/infinimesh/infinimesh/hack/device_certs/bacnet_1.key"
+            "certPath": "PATH TO YOUR SSL CERT",
+            "keyPath": "PATH TO YOUR SSL KEY"
         }
     },
     "bacnet": {
