@@ -25,5 +25,18 @@
     "bufferutil": ">=4.0.1",
     "utf-8-validate": ">=5.0.2"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "bugs": {
+    "url": "https://github.com/InfiniteDevices/bacnet-mqtt-gateway/issues"
+  },
+  "homepage": "https://github.com/InfiniteDevices/bacnet-mqtt-gateway#readme",
+  "keywords": [
+    "bacnet",
+    "mqtt",
+    "infinimesh",
+    "iiot",
+    "iot",
+    "smartcity",
+    "smartbuilding"
+  ]
 }
