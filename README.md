@@ -31,7 +31,7 @@ For BACnet connection the [Node BACstack](https://github.com/fh1ch/node-bacstack
     {
         "mqtt": {
             "gatewayId": "{{device id}}",
-            "host": "mqtt.api.infinimesh.io",
+            "host": "mqtt.api.infinimesh.cloud",
             "port": 8883,
             "authentication": {
                 "certPath": "{{device .crt file path}}",
