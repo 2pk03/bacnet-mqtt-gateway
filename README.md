@@ -23,7 +23,7 @@ For BACnet connection the [Node BACstack](https://github.com/fh1ch/node-bacstack
 
 2. Configure gateway:
 
-    By default the gateway is configured to use infinesh.io platform. But it can be used with any MQTT broker.
+    By default the gateway is configured to use [infinimesh.cloud](https://console.infinimesh.cloud) platform, but it can be used with any MQTT broker.
     
     Open `config/default.json` and change MQTT configuration by defining your device id and the path to the device certificate files.
     
