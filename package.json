@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/InfiniteDevices/bacnet-mqtt-gateway.git"
+    "url": "git://github.com/infinimesh/bacnet-mqtt-gateway.git"
   },
   "author": "Infinite Devices",
   "license": "Apache-2.0",
@@ -27,9 +27,9 @@
   },
   "devDependencies": {},
   "bugs": {
-    "url": "https://github.com/InfiniteDevices/bacnet-mqtt-gateway/issues"
+    "url": "https://github.com/infinimesh/bacnet-mqtt-gateway/issues"
   },
-  "homepage": "https://github.com/InfiniteDevices/bacnet-mqtt-gateway#readme",
+  "homepage": "https://github.com/infinimesh/bacnet-mqtt-gateway#readme",
   "keywords": [
     "bacnet",
     "mqtt",
