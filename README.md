@@ -16,7 +16,7 @@ For BACnet connection the [Node BACstack](https://github.com/fh1ch/node-bacstack
 1. Clone repo and install npm dependencies:
 
     ```shell
-    git clone https://github.com/infinimesh/bacnet-mqtt-gateway.git
+    git clone https://github.com/2pk03/bacnet-mqtt-gateway.git
     cd bacnet-mqtt-gateway
     npm install
     ```
