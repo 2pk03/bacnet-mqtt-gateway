@@ -128,28 +128,60 @@ class BacnetClient extends EventEmitter {
 
     startPolling(device, objects, scheduleExpression) {
         logger.log('info', `Schedule polling for device ${device.address} with expression ${scheduleExpression}`);
-        scheduleJob(scheduleExpression, () => {
+            scheduleJob(scheduleExpression, () => {
             logger.log('info', 'Fetching device object values');
             const promises = [];
             objects.forEach(deviceObject => {
-                promises.push(this._readObjectPresentValue(device.address, deviceObject.objectId.type, deviceObject.objectId.instance));
+                const objectIdToRead = { type: deviceObject.objectId.type, instance: deviceObject.objectId.instance };
+                logger.log('debug', `[Polling] Attempting to read: ${device.address}, Object: type=${objectIdToRead.type}, instance=${objectIdToRead.instance}`);
+                promises.push(
+                    this._readObjectPresentValue(device.address, deviceObject.objectId.type, deviceObject.objectId.instance)
+                        .then(res => {
+                            logger.log('debug', `[Polling] Raw response for ${JSON.stringify(objectIdToRead)}: ${JSON.stringify(res)}`);
+                            if (res.error) {
+                                logger.log('warn', `[Polling] Error reading ${JSON.stringify(objectIdToRead)}: ${JSON.stringify(res.error)}`);
+                            }
+                            return res;
+                        })
+                );
             });
             Promise.all(promises).then((result) => {
                 const values = {};
                 // remove errors and map to result element
-                const successfulResults = result.filter(element => !element.error).map(element => element.value);
+                const successfulResults = result.filter(element => {
+                    if (element.error) {
+                        // logger.log('warn', `[Polling] Filtering out result with error: ${JSON.stringify(element.error)}`); // Already logged above
+                        return false;
+                    }
+                    if (!element.value || !element.value.values || element.value.values.length === 0) {
+                        logger.log('warn', `[Polling] Filtering out result with no values: ${JSON.stringify(element.value)}`);
+                        return false;
+                    }
+                    return true;
+                }).map(element => element.value);
+
+                logger.log('debug', `[Polling] Successful results after filtering: ${JSON.stringify(successfulResults)}`);
+
                 successfulResults.forEach(object => {
+                    // Ensure object and its nested properties exist
+                    if (!object || !object.values || object.values.length === 0 || !object.values[0].values) {
+                        logger.log('warn', `[Polling] Skipping malformed successful result: ${JSON.stringify(object)}`);
+                        return;
+                    }
                     const objectId = object.values[0].objectId.type + '_' + object.values[0].objectId.instance;
                     const presentValue = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_PRESENT_VALUE);
                     const objectName = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_OBJECT_NAME);
+
+                    logger.log('debug', `[Polling] Extracted for ${objectId}: PV=${presentValue}, Name=${objectName}`);
 
                     values[objectId] = {};
 	                  values[objectId].value = presentValue;
 	                  values[objectId].name = objectName;
                 });
+                logger.log('debug', `[Polling] Emitting values: ${JSON.stringify(values)} for device ${device.address}`);
                 this.emit('values', device, values);
             }).catch(function (error) {
-                logger.log('error', `Error whilte fetching values: ${error}`);
+                logger.log('error', `Error while fetching values: ${error}`);
             });
         });
     }
