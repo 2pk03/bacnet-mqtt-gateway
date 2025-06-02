@@ -21,10 +21,10 @@ class Server {
         this.app.put('/api/bacnet/scan', this._scanForDevices.bind(this));
         this.app.put('/api/bacnet/:deviceId/objects', this._scanDevice.bind(this));
         this.app.put('/api/bacnet/:deviceId/config', this._configurePolling.bind(this));
+        this.app.put('/api/bacnet/write', this._writeProperty.bind(this)); 
 
         // start server
         this.app.listen(port, () => {
-            logger.log('info', `Gateway server listening on port ${port}`);
         });
     }
 
@@ -64,6 +64,59 @@ class Server {
         res.send({});
     }
 
+    async _writeProperty(req, res) {
+        const {
+            deviceId, // This is the key from your device config files (e.g., "114", "baspi1")
+            objectType,
+            objectInstance,
+            propertyId,
+            value,
+            priority,
+            bacnetApplicationTag
+        } = req.body;
+
+        if (deviceId === undefined || objectType === undefined || objectInstance === undefined || propertyId === undefined || value === undefined) {
+            return res.status(400).send({ status: 'error', message: 'Missing required fields: deviceId, objectType, objectInstance, propertyId, value' });
+        }
+
+        const deviceConfig = this.bacnetClient.deviceConfigs.get(deviceId.toString());
+
+        if (!deviceConfig || !deviceConfig.device || !deviceConfig.device.address) {
+            return res.status(404).send({ status: 'error', message: `Device configuration not found for deviceId: ${deviceId}` });
+        }
+
+        const deviceAddress = deviceConfig.device.address;
+        const bacnetObjectId = { type: parseInt(objectType, 10), instance: parseInt(objectInstance, 10) };
+        const propIdToUse = parseInt(propertyId, 10);
+        const appTagToUse = bacnetApplicationTag !== undefined ? parseInt(bacnetApplicationTag, 10) : undefined;
+        const priorityToUse = priority !== undefined ? parseInt(priority, 10) : undefined;
+
+        if (isNaN(bacnetObjectId.type) || isNaN(bacnetObjectId.instance) || isNaN(propIdToUse)) {
+            return res.status(400).send({ status: 'error', message: 'objectType, objectInstance, and propertyId must be numbers.' });
+        }
+        if (priorityToUse !== undefined && (isNaN(priorityToUse) || priorityToUse < 1 || priorityToUse > 16)) {
+            return res.status(400).send({ status: 'error', message: 'priority must be a number between 1 and 16.' });
+        }
+         if (appTagToUse !== undefined && isNaN(appTagToUse)) {
+            return res.status(400).send({ status: 'error', message: 'bacnetApplicationTag must be a number.' });
+        }
+
+
+        try {
+            const writeResponse = await this.bacnetClient.writeProperty(
+                deviceAddress,
+                bacnetObjectId,
+                propIdToUse,
+                value,
+                priorityToUse,
+                appTagToUse
+            );
+            res.status(200).send({ status: 'success', message: 'Write operation successful', response: writeResponse });
+        } catch (error) {
+            logger.log('error', `[API Write] Failed for DeviceId ${deviceId}: ${error.message || error}`);
+            res.status(500).send({ status: 'error', message: `BACnet write operation failed: ${error.message || error}`, details: error });
+        }
+    }
 }
 
 module.exports = {Server};

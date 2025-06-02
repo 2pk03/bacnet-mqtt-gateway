@@ -1,6 +1,8 @@
 const { createLogger, format, transports } = require('winston');
+const config = require('config'); 
+
 const logger = createLogger({
-    level: 'debug', // debug logging
+    level: config.get('logger.level'), 
     format: format.combine(
         format.timestamp({
             format: 'YYYY-MM-DD HH:mm:ss'

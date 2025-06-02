@@ -1,0 +1,15 @@
+{
+  "mqtt": {
+    "host": "MQTT_HOST",
+    "port": "MQTT_PORT",
+    "username": "MQTT_USERNAME",
+    "password": "MQTT_PASSWORD",
+    "gatewayId": "MQTT_GATEWAY_ID"
+  },
+  "httpServer": {
+    "port": "HTTP_PORT"
+  },
+  "logger": {
+    "level": "LOG_LEVEL"
+  }
+}

@@ -9,19 +9,25 @@ class BacnetClient extends EventEmitter {
     constructor() {
         super();
         this.client = new bacnet({ apduTimeout: 10000 });
+        this.deviceConfigs = new Map();
+
         this.client.on('iAm', (device) => {
             this.emit('deviceFound', device);
         });
 
         this.bacnetConfig = new BacnetConfig();
-        this.bacnetConfig.on('configLoaded', (config) => {
-            this.startPolling(config.device, config.objects, config.polling.schedule);
+        this.bacnetConfig.on('configLoaded', (deviceConfig) => {
+            if (deviceConfig && deviceConfig.device && deviceConfig.device.deviceId !== undefined) {
+                this.deviceConfigs.set(deviceConfig.device.deviceId.toString(), deviceConfig);
+            } else {
+                logger.log('warn', '[BacnetClient] Loaded a device config without a valid deviceId.');
+            }
+            this.startPolling(deviceConfig.device, deviceConfig.objects, deviceConfig.polling.schedule);
         })
         this.bacnetConfig.load();
     }
 
     _readObjectList(deviceAddress, deviceId, callback) {
-        // Read Device Object
         const requestArray = [{
             objectId: { type: bacnet.enum.ObjectTypes.OBJECT_DEVICE, instance: deviceId },
             properties: [
@@ -99,7 +105,6 @@ class BacnetClient extends EventEmitter {
 
     scanDevice(device) {
         return new Promise((resolve, reject) => {
-            logger.log('info', `Reading full object list from device: ${device.address}`);
             this._readObjectList(device.address, device.deviceId, (err, result) => {
                 if (!err) {
                     const objectArray = result.values[0].values[0].value;
@@ -112,7 +117,6 @@ class BacnetClient extends EventEmitter {
                     Promise.all(promises).then((result) => {
                         const successfulResults = result.filter(element => !element.error);
                         const deviceObjects = successfulResults.map(element => this._mapToDeviceObject(element.value));
-                        logger.log('info', `Objects found: ${deviceObjects.length}`);
                         this.emit('deviceObjects', device, deviceObjects);
                         resolve(deviceObjects);
                     }).catch((error) => {
@@ -127,17 +131,13 @@ class BacnetClient extends EventEmitter {
     }
 
     startPolling(device, objects, scheduleExpression) {
-        logger.log('info', `Schedule polling for device ${device.address} with expression ${scheduleExpression}`);
             scheduleJob(scheduleExpression, () => {
-            logger.log('info', 'Fetching device object values');
             const promises = [];
             objects.forEach(deviceObject => {
                 const objectIdToRead = { type: deviceObject.objectId.type, instance: deviceObject.objectId.instance };
-                logger.log('debug', `[Polling] Attempting to read: ${device.address}, Object: type=${objectIdToRead.type}, instance=${objectIdToRead.instance}`);
                 promises.push(
                     this._readObjectPresentValue(device.address, deviceObject.objectId.type, deviceObject.objectId.instance)
                         .then(res => {
-                            logger.log('debug', `[Polling] Raw response for ${JSON.stringify(objectIdToRead)}: ${JSON.stringify(res)}`);
                             if (res.error) {
                                 logger.log('warn', `[Polling] Error reading ${JSON.stringify(objectIdToRead)}: ${JSON.stringify(res.error)}`);
                             }
@@ -147,10 +147,8 @@ class BacnetClient extends EventEmitter {
             });
             Promise.all(promises).then((result) => {
                 const values = {};
-                // remove errors and map to result element
                 const successfulResults = result.filter(element => {
                     if (element.error) {
-                        // logger.log('warn', `[Polling] Filtering out result with error: ${JSON.stringify(element.error)}`); // Already logged above
                         return false;
                     }
                     if (!element.value || !element.value.values || element.value.values.length === 0) {
@@ -160,10 +158,7 @@ class BacnetClient extends EventEmitter {
                     return true;
                 }).map(element => element.value);
 
-                logger.log('debug', `[Polling] Successful results after filtering: ${JSON.stringify(successfulResults)}`);
-
                 successfulResults.forEach(object => {
-                    // Ensure object and its nested properties exist
                     if (!object || !object.values || object.values.length === 0 || !object.values[0].values) {
                         logger.log('warn', `[Polling] Skipping malformed successful result: ${JSON.stringify(object)}`);
                         return;
@@ -172,13 +167,10 @@ class BacnetClient extends EventEmitter {
                     const presentValue = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_PRESENT_VALUE);
                     const objectName = this._findValueById(object.values[0].values, bacnet.enum.PropertyIds.PROP_OBJECT_NAME);
 
-                    logger.log('debug', `[Polling] Extracted for ${objectId}: PV=${presentValue}, Name=${objectName}`);
-
                     values[objectId] = {};
 	                  values[objectId].value = presentValue;
 	                  values[objectId].name = objectName;
                 });
-                logger.log('debug', `[Polling] Emitting values: ${JSON.stringify(values)} for device ${device.address}`);
                 this.emit('values', device, values);
             }).catch(function (error) {
                 logger.log('error', `Error while fetching values: ${error}`);
@@ -188,6 +180,68 @@ class BacnetClient extends EventEmitter {
 
     saveConfig(config) {
         this.bacnetConfig.save(config);
+    }
+
+    /**
+     * Writes a property to a BACnet device.
+     * @param {string} deviceAddress - The IP address of the BACnet device.
+     * @param {object} objectId - The BACnet objectId {type, instance}.
+     * @param {number} propertyId - The BACnet propertyId (e.g., bacnet.enum.PropertyIds.PROP_PRESENT_VALUE).
+     * @param {any} valueToWrite - The value to write.
+     * @param {number} [priority] - Optional write priority (1-16).
+     * @param {number} [bacnetApplicationTag] - Optional BACnet Application Tag for the value.
+     * @returns {Promise<object>} A promise that resolves with the write confirmation or rejects with an error.
+     */
+    writeProperty(deviceAddress, objectId, propertyId, valueToWrite, priority, bacnetApplicationTag) {
+        return new Promise((resolve, reject) => {
+            let bacnetValue = valueToWrite; 
+            let bacnetType;
+
+            if (bacnetApplicationTag !== undefined && typeof bacnetApplicationTag === 'number') {
+                bacnetType = bacnetApplicationTag;
+                if (bacnetType === bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_BOOLEAN) {
+                    bacnetValue = valueToWrite ? 1 : 0;
+                }
+            } else {
+                if (typeof valueToWrite === 'number') {
+                    if (Number.isInteger(valueToWrite)) {
+                        bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_SIGNED_INT;
+                    } else {
+                        bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_REAL;
+                    }
+                } else if (typeof valueToWrite === 'boolean') {
+                    bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_BOOLEAN;
+                    bacnetValue = valueToWrite ? 1 : 0;
+                } else if (typeof valueToWrite === 'string') {
+                    const numVal = parseFloat(valueToWrite);
+                    if (!isNaN(numVal)) { 
+                        if (Number.isInteger(numVal)) {
+                            bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_SIGNED_INT;
+                        } else {
+                            bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_REAL;
+                        }
+                        bacnetValue = numVal;
+                    } else { 
+                        bacnetType = bacnet.enum.ApplicationTags.BACNET_APPLICATION_TAG_CHARACTER_STRING;
+                    }
+                } else {
+                    reject(new Error(`Unsupported value type for BACnet write: ${typeof valueToWrite} (and no BACnetApplicationTag provided)`));
+                    return;
+                }
+            }
+
+            const values = [{ type: bacnetType, value: bacnetValue }];
+            const options = priority ? { priority: priority } : undefined;
+
+            this.client.writeProperty(deviceAddress, objectId, propertyId, values, options, (err, val) => {
+                if (err) {
+                    logger.log('error', `[BACnet Write] Error writing property: ${err}`);
+                    reject(err);
+                } else {
+                    resolve(val);
+                }
+            });
+        });
     }
 }
 

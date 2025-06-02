@@ -29,11 +29,14 @@
             <h2>Devices in Network</h2>
             <whois inline-template>
                 <div>
-                    <button v-on:click="whois" v-if="!loading" class="btn btn-primary">Scan</button>
-                    <button v-if="loading" class="btn btn-primary" type="button" disabled>
-                        <span class="spinner-border spinner-border-sm"></span>
-                        Scanning...
-                    </button>
+                    <button v-on:click="whois" v-if="!loading" class="btn btn-primary">Scan Network</button>
+                    <div v-if="loading">
+                        <button class="btn btn-primary" type="button" disabled>
+                            <span class="spinner-border spinner-border-sm"></span>
+                            Scanning... (5s timeout)
+                        </button>
+                        <button v-on:click="stopWhoisScan" class="btn btn-danger ml-2">Stop Scan</button>
+                    </div>
                     <table class="table table-dark" v-if="!loading && devices && devices.length > 0">
                         <thead>
                         <tr>
@@ -80,16 +83,31 @@
                             <th scope="col">Object ID</th>
                             <th scope="col">Name</th>
                             <th scope="col">Description</th>
+                            <th scope="col">Actions</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="object in objects">
+                        <tr v-for="object in objects" :key="object.objectId.type + '-' + object.objectId.instance">
                             <td>{{object.objectId.type}} / {{object.objectId.instance}}</td>
                             <td>{{object.name}}</td>
                             <td>{{object.description}}</td>
+                            <td>
+                                <button @click="openWriteForm(object)" class="btn btn-sm btn-info">Write</button>
+                            </td>
                         </tr>
                         </tbody>
                     </table>
+                    <!-- Write Form Modal/Component -->
+                    <div v-if="showWriteForm && selectedObjectForWrite">
+                        <object-write-form
+                            :device-id="selectedObjectForWrite.parentDeviceId"
+                            :object-type="selectedObjectForWrite.objectType"
+                            :object-instance="selectedObjectForWrite.objectInstance"
+                            :initial-object-name="selectedObjectForWrite.initialObjectName"
+                            @close-write-form="closeWriteForm"
+                            @write-successful="handleWriteSuccessful">
+                        </object-write-form>
+                    </div>
                 </div>
             </device-scan>
         </div>
@@ -100,6 +118,57 @@
 <script type="text/x-template" id="spinner">
     <div class="d-flex justify-content-center">
         <div class="spinner-border spinner" role="status"></div>
+    </div>
+</script>
+
+<script type="text/x-template" id="object-write-form-template">
+    <div class="object-write-form-modal">
+        <div class="modal-content">
+            <span class="close-button" @click="closeForm">&times;</span>
+            <h4>Write to Object: {{ initialObjectName || (objectType + ':' + objectInstance) }}</h4>
+            <p>Device ID: {{ deviceId }}</p>
+            
+            <div v-if="loading" class="spinner-container">
+                <spinner></spinner> <!-- Assuming spinner component is globally available -->
+            </div>
+
+            <div v-if="!loading">
+                <div class="form-group">
+                    <label :for="'propId-' + objectInstance">Property ID:</label>
+                    <select :id="'propId-' + objectInstance" v-model.number="propertyId" class="form-control">
+                        <option v-for="prop in commonProperties" :value="prop.value">{{ prop.text }}</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label :for="'val-' + objectInstance">Value:</label>
+                    <input type="text" :id="'val-' + objectInstance" v-model="valueToWrite" class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label :for="'appTag-' + objectInstance">BACnet Application Tag (Optional):</label>
+                    <select :id="'appTag-' + objectInstance" v-model.number="bacnetApplicationTag" class="form-control">
+                        <option :value="null">Auto-detect (or None)</option>
+                        <option v-for="tag in commonAppTags" :value="tag.value">{{ tag.text }}</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label :for="'prio-' + objectInstance">Write Priority (Optional, 1-16):</label>
+                    <input type="number" :id="'prio-' + objectInstance" v-model.number="priority" min="1" max="16" class="form-control">
+                </div>
+
+                <button @click="submitWrite" class="btn btn-primary btn-sm">Submit Write</button>
+                <button @click="closeForm" class="btn btn-secondary btn-sm ml-2">Cancel</button>
+
+                <div v-if="writeStatus === 'success'" class="alert alert-success mt-3">
+                    {{ errorMessage }}
+                </div>
+                <div v-if="writeStatus === 'error'" class="alert alert-danger mt-3">
+                    {{ errorMessage }}
+                </div>
+            </div>
+        </div>
     </div>
 </script>
 

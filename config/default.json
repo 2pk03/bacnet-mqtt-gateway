@@ -1,12 +1,10 @@
 {
     "mqtt": {
-        "gatewayId": "YOUR INFINIMESH DEVICE ID",
-        "host": "mqtt.api.infinimesh.cloud",
-        "port": 8883,
-        "authentication": {
-            "certPath": "PATH TO YOUR SSL CERT",
-            "keyPath": "PATH TO YOUR SSL KEY"
-        }
+        "gatewayId": "default-bacnet-gateway",
+        "host": "localhost",
+        "port": 1883,
+        "username": "default_user",
+        "password": "default_password"
     },
     "bacnet": {
         "configFolder": "./devices/"
@@ -14,5 +12,8 @@
     "httpServer": {
         "enabled": true,
         "port": 8082
+    },
+    "logger": {
+        "level": "info"
     }
 }

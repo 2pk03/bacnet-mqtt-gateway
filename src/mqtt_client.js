@@ -3,8 +3,6 @@ const config = require('config');
 const fs = require('fs');
 const EventEmitter = require('events');
 const {logger} = require('./common');
-
-// load configs
 const gatewayId = config.get('mqtt.gatewayId');
 const host = config.get('mqtt.host');
 const port = config.get('mqtt.port');
@@ -24,7 +22,6 @@ class MqttClient extends EventEmitter {
             password: password, 
         };
 
-        logger.log('debug', `[MQTT] Connecting to ${host}:${port} with username ${username}`);
         this.client = mqtt.connect(options);
 
         this.client.on('connect', () => {
@@ -37,23 +34,83 @@ class MqttClient extends EventEmitter {
     }
 
     _onConnect() {
-        logger.log('info', 'Client connected');
+        // New topic: bacnetwrite/<gatewayId>/<deviceId>/<objectType>_<objectInstance>/<propertyId>/set
+        const writeTopicPattern = `bacnetwrite/${gatewayId}/+/+/+/set`; 
+        this.client.subscribe(writeTopicPattern, (err) => {
+            if (err) {
+                logger.log('error', `[MQTT] Error subscribing to write topic pattern ${writeTopicPattern}: ${err}`);
+            } else {
+            }
+        });
 
-        this.client.on('message', (msg) => this._onMessage(msg));
+        this.client.on('message', (topic, message) => this._onMessage(topic, message));
 
         this.client.on('error', function (err) {
             logger.log('error', err);
         });
     };
 
-    _onMessage(msg) {
-        logger.log('info', `Received message ${msg}`);
+    _onMessage(topic, message) {
+        const topicParts = topic.split('/');
+        if (topicParts.length === 6 && topicParts[0] === 'bacnetwrite' && topicParts[5] === 'set') {
+            const receivedGatewayId = topicParts[1];
+            const deviceIdFromTopic = topicParts[2]; 
+            const objectKey = topicParts[3];         
+            const propertyIdFromTopicStr = topicParts[4]; 
+
+            if (receivedGatewayId !== gatewayId) {
+                logger.log('warn', `[MQTT Write] Received write command for wrong gatewayId. Expected ${gatewayId}, got ${receivedGatewayId}. Ignoring.`);
+                return;
+            }
+
+            const objectIdParts = objectKey.split('_');
+            if (objectIdParts.length !== 2) {
+                logger.log('warn', `[MQTT Write] Malformed objectKey in topic ${topic}: ${objectKey}. Expected type_instance.`);
+                return;
+            }
+
+            const objectType = parseInt(objectIdParts[0], 10);
+            const objectInstance = parseInt(objectIdParts[1], 10);
+            const propertyIdFromTopic = parseInt(propertyIdFromTopicStr, 10);
+
+            if (isNaN(objectType) || isNaN(objectInstance) || isNaN(propertyIdFromTopic)) {
+                logger.log('warn', `[MQTT Write] Invalid objectType, objectInstance, or propertyId in topic ${topic}. Parts: type=${objectType}, instance=${objectInstance}, propId=${propertyIdFromTopic}`);
+                return;
+            }
+
+            let payload;
+            try {
+                payload = JSON.parse(message.toString());
+            } catch (e) {
+                // If not a JSON object, assume the raw message is the value, and priority is undefined.
+                // This maintains compatibility with sending just a simple value.
+                payload = { value: message.toString() };
+            }
+
+            const valueToWrite = payload.value;
+            const priority = payload.priority; 
+            const bacnetApplicationTag = payload.bacnetApplicationTag;
+
+            if (valueToWrite === undefined) {
+                logger.log('warn', `[MQTT Write] No 'value' field in JSON payload for topic ${topic}. Payload: ${message.toString()}`);
+                return;
+            }
+            this.emit('bacnetWriteCommand', {
+                deviceId: deviceIdFromTopic, 
+                objectKey: objectKey, 
+                objectType: objectType,
+                objectInstance: objectInstance,
+                propertyId: propertyIdFromTopic, 
+                value: valueToWrite,
+                priority: priority,
+                bacnetApplicationTag: bacnetApplicationTag
+            });
+        }
     }
 
     publishMessage(messageJson) {
         const keys = Object.keys(messageJson);
         if (keys.length > 0 && messageJson[keys[0]] && typeof messageJson[keys[0]].value !== 'undefined') {
-            logger.log('debug', '[MQTT] Publishing device values for Home Assistant');
             keys.forEach(key => { // key is like "2_202"
                 const bacnetObjectType = key.split('_')[0]; // e.g., "2"
                 let haComponentType = 'sensor'; 
@@ -73,15 +130,12 @@ class MqttClient extends EventEmitter {
                 const topic = `homeassistant/${haComponentType}/${gatewayId}/${key}/state`;
                 const message = JSON.stringify(messageJson[key].value);
 
-                logger.log('debug', `[MQTT] Publishing to ${topic}: ${message}`);
                 this.client.publish(topic, message, { retain: true }); 
             });
         } else if (messageJson && typeof messageJson.deviceId !== 'undefined' && typeof messageJson.address !== 'undefined') {
-            logger.log('info', `[MQTT] Publishing device found event for ${messageJson.address}`);
             // Example topic: bacnet-gateway/YOUR_GATEWAY_ID/device_found/DEVICE_ID
             const topic = `bacnet-gateway/${gatewayId}/device_found/${messageJson.deviceId}`;
             const message = JSON.stringify(messageJson);
-            logger.log('debug', `[MQTT] Publishing to ${topic}: ${message}`);
             this.client.publish(topic, message, { retain: true });
         } else {
             if (keys.length === 0 && JSON.stringify(messageJson) === '{}') {
@@ -91,7 +145,6 @@ class MqttClient extends EventEmitter {
             logger.log('warn', `[MQTT] Unknown message structure. Publishing to default/error topic: ${JSON.stringify(messageJson)}`);
             const topic = `bacnet-gateway/${gatewayId}/unknown_data`;
             const message = JSON.stringify(messageJson);
-            logger.log('debug', `[MQTT] Publishing to ${topic}: ${message}`);
             this.client.publish(topic, message);
         }
     }
