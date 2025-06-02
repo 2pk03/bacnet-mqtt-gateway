@@ -3,8 +3,12 @@ const config = require('config');
 const cors = require('cors');
 const { json } = require('body-parser');
 const { logger } = require('./common');
+const swaggerUi = require('swagger-ui-express'); 
+const YAML = require('yamljs'); 
+const path = require('path'); 
 
 const port = config.get('httpServer.port');
+const openapiDocument = YAML.load(path.join(__dirname, '../openapi.yaml')); 
 
 class Server {
 
@@ -16,6 +20,7 @@ class Server {
         this.app.use(json());
         this.app.use(cors());
         this.app.use('/admin', express.static('web'));
+        this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument)); 
 
         // define REST api
         this.app.put('/api/bacnet/scan', this._scanForDevices.bind(this));
